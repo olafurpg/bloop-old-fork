@@ -85,6 +85,8 @@ object Cli {
 
             command match {
               case Left(err) => printErrorAndExit(err)
+              case Right(v: Commands.Help) =>
+                Print(helpAsked, commonOptions, Exit(ExitStatus.Ok))
               case Right(v: Commands.About) =>
                 val newCommand = v.copy(cliOptions = v.cliOptions.copy(common = commonOptions))
                 // Disabling version here if user defines it because it has the same semantics
