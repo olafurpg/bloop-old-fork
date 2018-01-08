@@ -9,10 +9,12 @@ import bloop.io.Timer.timed
 import bloop.logging.BloopLogger
 import jline.console.ConsoleReader
 import caseapp.{CaseApp, RemainingArgs}
+import scala.concurrent.Future
 
 import scala.annotation.tailrec
 
 object Bloop extends CaseApp[CliOptions] {
+
   private val reader = consoleReader()
 
   override def run(options: CliOptions, remainingArgs: RemainingArgs): Unit = {

@@ -17,8 +17,13 @@ object BuildPlugin extends AutoPlugin {
     BuildImplementation.globalSettings
   override def buildSettings: Seq[Def.Setting[_]] =
     BuildImplementation.buildSettings
+    import sbt._
+    import sbt.Keys._
   override def projectSettings: Seq[Def.Setting[_]] =
-    BuildImplementation.projectSettings
+    BuildImplementation.projectSettings ++ List(
+      Keys.libraryDependencies += 
+        compilerPlugin("org.scalameta" % "semanticdb-scalac" % "2.1.5" cross CrossVersion.full)
+    )
 }
 
 object BuildKeys {
@@ -132,7 +137,7 @@ object BuildImplementation {
   final val globalSettings: Seq[Def.Setting[_]] = Seq(
     Keys.testOptions in Test += sbt.Tests.Argument("-oD"),
     Keys.onLoadMessage := Header.intro,
-    Keys.commands += Semanticdb.command(Keys.crossScalaVersions.value),
+    // Keys.commands += Semanticdb.command(Keys.crossScalaVersions.value),
     Keys.commands ~= BuildDefaults.fixPluginCross _,
     Keys.commands += BuildDefaults.setupTests,
     Keys.onLoad := BuildDefaults.onLoad.value,
@@ -148,10 +153,11 @@ object BuildImplementation {
   ) ++ buildPublishSettings
 
   final val projectSettings: Seq[Def.Setting[_]] = Seq(
-    Keys.scalacOptions in Compile := reasonableCompileOptions,
+    Keys.scalacOptions := reasonableCompileOptions,
   )
 
   final val reasonableCompileOptions = (
+    "-Yrangepos" ::
     "-deprecation" :: "-encoding" :: "UTF-8" :: "-feature" :: "-language:existentials" ::
       "-language:higherKinds" :: "-language:implicitConversions" :: "-unchecked" :: "-Yno-adapted-args" ::
       "-Ywarn-numeric-widen" :: "-Ywarn-value-discard" :: "-Xfuture" :: Nil
@@ -163,7 +169,7 @@ object BuildImplementation {
     import sbt.State
     /* This rounds off the trickery to set up those projects whose `overridingProjectSettings` have
      * been overriden because sbt has decided to initialize the settings from the sourcedep after. */
-    val hijacked = sbt.AttributeKey[Boolean]("The hijacked option.")
+    val hijacked = sbt.AttributeKey[Boolean]("hijacked")
     val onLoad: Def.Initialize[State => State] = Def.setting { (state: State) =>
       val globalSettings =
         List(Keys.onLoadMessage in sbt.Global := s"Setting up the integration builds.")
