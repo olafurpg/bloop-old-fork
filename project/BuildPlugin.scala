@@ -202,8 +202,12 @@ object BuildImplementation {
     val onLoad: Def.Initialize[State => State] = Def.setting { (state: State) =>
       val globalSettings =
         List(Keys.onLoadMessage in sbt.Global := s"Setting up the integration builds.")
-      def genProjectSettings(ref: sbt.ProjectRef) =
-        BuildKeys.inProject(ref)(List(Keys.organization := "ch.epfl.scala"))
+      def genProjectSettings(ref: sbt.ProjectRef) = {
+        BuildKeys.inProject(ref)(List(
+          Keys.organization := "ch.epfl.scala",
+          Keys.scalaVersion := (Keys.scalaVersion in sbt.ThisBuild).value,
+        ))
+      }
       val buildStructure = sbt.Project.structure(state)
       if (state.get(hijacked).getOrElse(false)) state.remove(hijacked)
       else {
