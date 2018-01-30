@@ -91,7 +91,6 @@ object BspClientTest {
       _ <- s
       _ <- c
     } yield println("Done!")
-
     import scala.concurrent.Await
     import scala.concurrent.duration.FiniteDuration
     Await.result(app, FiniteDuration(4, "s"))
@@ -108,8 +107,20 @@ object BspClientTest {
         case cmd: Commands.TcpBsp => new java.net.Socket(cmd.host, cmd.port)
       }
     }
+    retryBackoff(connectToServer, 4, FiniteDuration(1, "s"))
+  }
 
-    // We delay the start of the client to wait for the bsp server to go live.
-    connectToServer.delayExecution(scala.concurrent.duration.FiniteDuration(400, "ms"))
+  def retryBackoff[A](source: me.Task[A],
+                      maxRetries: Int,
+                      firstDelay: FiniteDuration): me.Task[A] = {
+    source.onErrorHandleWith {
+      case ex: Exception =>
+        if (maxRetries > 0)
+          // Recursive call, it's OK as Monix is stack-safe
+          retryBackoff(source, maxRetries - 1, firstDelay * 2)
+            .delayExecution(firstDelay)
+        else
+          me.Task.raiseError(ex)
+    }
   }
 }
