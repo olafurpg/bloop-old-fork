@@ -43,16 +43,16 @@ object BspServer {
 
   private[bloop] def closeSocket(cmd: Commands.ValidatedBsp, socket: java.net.Socket): Unit = {
     println("Closing socket")
-    cmd match {
-      case _: Commands.TcpBsp if !socket.isClosed() =>
-        socket.close()
-      case _: Commands.WindowsLocalBsp if !socket.isClosed() => socket.close()
-      case _: Commands.UnixLocalBsp if !socket.isClosed() =>
-        if (!socket.isInputShutdown) socket.shutdownInput()
-        if (!socket.isOutputShutdown) socket.shutdownOutput()
-        socket.close()
-      case _ => ()
-    }
+    socket.close()
+//    cmd match {
+//      case _: Commands.TcpBsp =>
+//      case _: Commands.WindowsLocalBsp if !socket.isClosed => socket.close()
+//      case _: Commands.UnixLocalBsp if !socket.isClosed =>
+//        if (!socket.isInputShutdown) socket.shutdownInput()
+//        if (!socket.isOutputShutdown) socket.shutdownOutput()
+//        socket.close()
+//      case _ => ()
+//    }
   }
 
   private final val bspLogger = com.typesafe.scalalogging.Logger(this.getClass)
@@ -86,8 +86,7 @@ object BspServer {
 
       server.startTask
         .map(_ => servicesProvider.latestState)
-        .doOnCancel(me.Task {
-          //closeSocket(cmd, socket)
+        .doOnFinish(_ => me.Task {
           handle.serverSocket.close()
         })
     }

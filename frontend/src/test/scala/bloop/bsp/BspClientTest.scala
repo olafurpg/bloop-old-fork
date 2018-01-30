@@ -45,16 +45,17 @@ object BspClientTest {
     }
   }
 
-  val scheduler: Scheduler = Scheduler(java.util.concurrent.Executors.newFixedThreadPool(4),
-                                       ExecutionModel.AlwaysAsyncExecution)
+  implicit val scheduler: Scheduler = Scheduler(
+    java.util.concurrent.Executors.newFixedThreadPool(4),
+    ExecutionModel.AlwaysAsyncExecution)
   def runTest[T](cmd: Commands.ValidatedBsp, configDirectory: AbsolutePath)(
       runEndpoints: LanguageClient => me.Task[Either[Response.Error, T]]): Unit = {
 
-    val projectName = cmd.cliOptions.common.workingPath.underlying.getFileName().toString()
+    val projectName = cmd.cliOptions.common.workingPath.underlying.getFileName.toString
     val state = ProjectHelpers.loadTestProject(projectName)
-    val runningBspServer = BspServer.run(cmd, state, scheduler).runAsync(scheduler)
+    val bspServer = BspServer.run(cmd, state, scheduler)
 
-    val bspClientExecution = establishClientConnection(cmd).flatMap { socket =>
+    val bspClient = establishClientConnection(cmd).flatMap { socket =>
       val in = socket.getInputStream
       val out = socket.getOutputStream
       val services = Services.empty
@@ -62,7 +63,9 @@ object BspClientTest {
       val messages = BaseProtocolMessage.fromInputStream(in)
       messages.doOnSubscriptionCancel(() => "I am being cancelled!")
       val lsServer = new LanguageServer(messages, lsClient, services, scheduler, slf4jLogger)
-      val runningClientServer = lsServer.startTask.runAsync(scheduler)
+      val runningClientServer = lsServer.startTask
+        .doOnFinish(_ => me.Task(println("runningClientServer.finish")))
+        .runAsync(scheduler)
 
       val cwd = configDirectory.getParent
       val initializeServer = endpoints.Build.initialize.request(
@@ -75,27 +78,24 @@ object BspClientTest {
       val requests = for {
         // Delay the task to let the bloop server go live
         initializeResult <- initializeServer.delayExecution(FiniteDuration(1, "s"))
-        val _ = endpoints.Build.initialized.notify(InitializedBuildParams())
+        _ = endpoints.Build.initialized.notify(InitializedBuildParams())
         otherCalls <- runEndpoints(lsClient)
-      } yield runningClientServer
-
-      requests.doOnFinish { _ =>
-        me.Task {
-          // `Cancelable.cancelAll` doesn't trigger cancellation!
-          runningBspServer.cancel()
-          runningClientServer.cancel()
-          BspServer.closeSocket(cmd, socket)
-        }
+      } yield {
+        socket.close()
       }
+      requests
     }
+    val s = bspServer.runAsync(scheduler)
+    val c = bspClient.runAsync(scheduler)
+    val app = for {
+      _ <- s
+      _ <- c
+    } yield println("Done!")
 
     import scala.concurrent.Await
     import scala.concurrent.duration.FiniteDuration
-    val sendClientRequests = bspClientExecution.runAsync(scheduler)
-    val runningClientServer = Await.result(sendClientRequests, FiniteDuration(10, "s"))
-    Await.result(runningBspServer, FiniteDuration(10, "s")) // blocks here?????
-    Await.result(runningClientServer, FiniteDuration(10, "s"))
-    cleanUpLastResources(cmd)
+    Await.result(app, FiniteDuration(4, "s"))
+    println("Await!")
   }
 
   private def establishClientConnection(cmd: Commands.ValidatedBsp): me.Task[java.net.Socket] = {
