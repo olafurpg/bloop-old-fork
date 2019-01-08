@@ -12,6 +12,8 @@ import xsbti.Severity
 import scala.meta.jsonrpc.JsonRpcClient
 import ch.epfl.scala.bsp
 import ch.epfl.scala.bsp.endpoints.Build
+import io.circe.Json
+import io.circe.JsonObject
 import monix.execution.atomic.AtomicInt
 
 /**
@@ -120,10 +122,6 @@ final class BspServerLogger private (
 
   /**
    * Publish a compile progress notification to the client via BSP.
-   *
-   * The following fields of the progress notification are not populated:
-   *
-   * 1. data: Option[Json] -- there is no additional metadata we want to share with the client.
    */
   def publishCompileProgress(
       taskId: bsp.TaskId,
@@ -142,7 +140,14 @@ final class BspServerLogger private (
         Some(total),
         Some("phase/file"),
         Some("compile"),
-        None
+        Some(
+          Json.fromJsonObject(
+            JsonObject(
+              "unit" -> Json.fromString(sourceFile),
+              "phase" -> Json.fromString(phase)
+            )
+          )
+        )
       )
     )
     ()
